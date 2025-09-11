@@ -11,6 +11,7 @@ provider "azurerm" {
   features {}
 }
 
+
 locals {
   naming = "${var.projectName}-${var.env}"
   tags = {
