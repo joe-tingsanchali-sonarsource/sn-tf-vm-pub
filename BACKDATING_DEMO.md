@@ -105,3 +105,59 @@ For backdating to work, SonarQube needs access to the full git history. The CI w
 ```
 
 If `fetch-depth` were set to `1` (shallow clone), `git blame` would attribute all lines to the single fetched commit and backdating would not reflect the true commit dates.
+
+---
+
+## How to Reproduce
+
+**Prerequisites:** A SonarCloud-connected repo with `fetch-depth: 0` in CI and a valid `SONAR_TOKEN` secret.
+
+**1. Create a new branch** (first analysis of a branch triggers backdating):
+
+```bash
+git checkout -b feature/my-backdating-test
+```
+
+**2. Create a file with a detectable issue and commit it with a backdated date:**
+
+```bash
+cat > demo_backdating.tf << 'EOF'
+resource "azurerm_network_security_group" "demo" {
+  name                = "demo-nsg"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.sn_tf_rg.name
+
+  security_rule {
+    name                       = "SSH"
+    priority                   = 1010
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+EOF
+
+git add demo_backdating.tf
+GIT_AUTHOR_DATE="2020-06-01T10:00:00-05:00" \
+GIT_COMMITTER_DATE="2020-06-01T10:00:00-05:00" \
+git commit -m "feat: add NSG configuration"
+```
+
+**3. Push to trigger analysis:**
+
+```bash
+git push -u origin feature/my-backdating-test
+```
+
+**4. Verify** — once CI completes, query the SonarCloud API (no auth needed for public projects):
+
+```bash
+curl -s "https://sonarcloud.io/api/issues/search?componentKeys=<YOUR_PROJECT_KEY>&branch=feature%2Fmy-backdating-test&resolved=false" \
+  | python3 -m json.tool | grep -E '"rule"|"creationDate"|"line"'
+```
+
+**Expected:** `creationDate` matches the backdated commit date (e.g. `2020-06-01`), not today's date.
