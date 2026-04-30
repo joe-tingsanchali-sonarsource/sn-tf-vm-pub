@@ -157,7 +157,7 @@ git push -u origin feature/my-backdating-test
 
 ```bash
 curl -s "https://sonarcloud.io/api/issues/search?componentKeys=<YOUR_PROJECT_KEY>&branch=feature%2Fmy-backdating-test&resolved=false" \
-  | python3 -m json.tool | grep -E '"rule"|"creationDate"|"line"'
+  | jq '[.issues[] | {rule, line, creationDate, component}]'
 ```
 
 **Expected:** `creationDate` matches the backdated commit date (e.g. `2020-06-01`), not today's date.
